@@ -19,14 +19,16 @@ export const registerUser = async (payload) => {
   return res.data;
 };
 
+
 /**
  * Login user
- * @param {Object} payload - { username, password }
+ * @param {Object} payload - { identifier, password }
  */
 export const loginUser = async (payload) => {
   const res = await api.post("/auth/login", payload);
   return res.data; // expected to include tokens or success message
 };
+
 
 /**
  * Verify token validity (optional)
