@@ -110,53 +110,85 @@ export default function AuthPage() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    console.log("🔄 Form submitted - preventing default");
+  e.preventDefault();
+  console.log("✅ Default prevented");
+    setIsLoading(true);
+    setMessage("");
+    setMessageType("");
+    
     const fd = new FormData(e.currentTarget);
     const payload = Object.fromEntries(fd.entries());
 
     try {
       if (tab === "login") {
-       const res = await loginUser({
-  identifier: payload.email,
-  password: payload.password,
-});
+        const res = await loginUser({
+          identifier: payload.identifier,
+          password: payload.password,
+        });
 
-console.log("✅ Login success:", res);
-setMessage(`Welcome back, ${payload.email || "friend"}!`);
+        console.log("✅ Login success:", res);
+        showMessage(`Welcome back, ${payload.identifier || "friend"}!`, "success");
 
-// store tokens locally for later
-localStorage.setItem("access_token", res.access_token);
-localStorage.setItem("refresh_token", res.refresh_token);
+        localStorage.setItem("access_token", res.access_token);
+        localStorage.setItem("refresh_token", res.refresh_token);
 
-// optional small delay before redirect
-setTimeout(() => {
-  window.location.href = "/workstation";
-}, 800);
-
+        setTimeout(() => {
+          window.location.href = "/workstation";
+        }, 1500);
       } else {
+        // Registration validation
+        if (payload.password.length < 6) {
+          showMessage("Password must be at least 6 characters", "warning");
+          setIsLoading(false);
+          return;
+        }
+
         const res = await registerUser({
-          username: payload.name || payload.email.split("@")[0],
+          username: payload.username,
           email: payload.email,
           password: payload.password,
         });
+        
         console.log("✅ Register success:", res);
-        setMessage(`Account created for ${payload.email || "you"} ✔`);
+        showMessage(`Account created for ${payload.username}! You can now log in.`, "success");
+        
+        // Switch to login tab after successful registration
+        setTimeout(() => {
+          setTab("login");
+          setMessage("");
+        }, 3000);
       }
     } catch (err) {
       console.error("❌ Auth failed:", err.response?.data || err);
-      setMessage(err.response?.data?.detail || "Something went wrong");
+      
+      const errorData = err.response?.data;
+      
+      // Handle specific error cases
+      if (errorData?.detail?.includes("Invalid credentials") || 
+          errorData?.detail?.includes("incorrect") || 
+          errorData?.detail?.includes("Invalid password")) {
+        showMessage("❌ Incorrect password. Please try again.", "error");
+      } else if (errorData?.detail?.includes("User not found") || 
+                 errorData?.detail?.includes("not exist")) {
+        showMessage("❌ User not found. Please check your username/email.", "error");
+      } else if (errorData?.detail?.includes("Username already taken") || 
+                 errorData?.detail?.includes("Email already taken")) {
+        showMessage("❌ " + errorData.detail, "warning");
+      } else if (errorData?.detail) {
+        showMessage("❌ " + errorData.detail, "error");
+      } else {
+        showMessage("❌ Authentication failed. Please try again.", "error");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
+
   return (
     <div className="app auth-page">
-      <PfNav
-        theme={theme}
-        onToggleTheme={toggle}
-        onGoWorkstation={goWorkstation}
-        onGoGraph={goGraph}
-        onGoHistory={goHistory}
-      />
+
 
       <main>
         <section className="auth-wrap container">
@@ -202,8 +234,23 @@ setTimeout(() => {
                 </div>
 
                 <form key={tab} onSubmit={handleSubmit} className="form" noValidate>
-                  <label htmlFor="email" className="fade-item" style={{ animationDelay: "40ms" }}>Email or username</label>
-                  <input id="email" name="email" type="text" placeholder="you@company.com" required className="fade-item" style={{ animationDelay: "80ms" }} />
+                {/* Login: Show identifier field */}
+                  {tab === "login" && (
+                    <>
+                      <label htmlFor="identifier" className="fade-item" style={{ animationDelay: "40ms" }}>Username or Email</label>
+                      <input id="identifier" name="identifier" type="text" placeholder="john.doe or you@company.com" required className="fade-item" style={{ animationDelay: "80ms" }} disabled={isLoading} />
+                    </>
+                  )}
+                {/* Login: Show identifier field */}
+                  {tab === "signup" && (
+                    <>
+                    <label htmlFor="username" className="fade-item" style={{ animationDelay: "40ms" }}>Username</label>
+                    <input id="username" name="username" type="text" placeholder="john.doe" required className="fade-item" style={{ animationDelay: "80ms" }} disabled={isLoading} />
+
+                    <label htmlFor="email" className="fade-item" style={{ animationDelay: "120ms" }}>Email</label>
+                    <input id="email" name="email" type="email" placeholder="you@company.com" required className="fade-item" style={{ animationDelay: "160ms" }} disabled={isLoading} />
+                    </>
+                  )}
 
                   <label htmlFor="password" className="fade-item" style={{ animationDelay: "120ms" }}>Password</label>
                   <input id="password" name="password" type="password" placeholder="••••••••" required className="fade-item" style={{ animationDelay: "160ms" }} disabled={isLoading} />

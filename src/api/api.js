@@ -9,46 +9,66 @@ import axios from "axios";
 
 /* ------------------------------ Base Instance ------------------------------ */
 const api = axios.create({
-baseURL: "http://localhost:8000",
- // FastAPI local backend
-  withCredentials: true,             // allow cookie/token authentication
+  // ✅ Reads from Vite .env (example: VITE_API_URL=http://localhost:8000)
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
+  withCredentials: true,
 });
 
-/* ------------------------------- AUTH ROUTES ------------------------------- */
+/* ---------- Attach Authorization header automatically ---------- */
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("access_token");
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-/**
- * Register a new user
- * @param {Object} payload - { username, email, password }
- */
-export const registerUser = async (payload) => {
-  const res = await api.post("/auth/register", payload);
-  return res.data;
-};
 
-/**
- * Login user
- * @param {Object} payload - { username, password }
- */
-export const loginUser = async (payload) => {
-  const res = await api.post("/auth/login", payload);
-  return res.data; // expected to include tokens or success message
-};
+/* ---------- Handle 401 (Token Expiry) ---------- */
+api.interceptors.response.use(
+  (response) => response, // pass through if OK
+  async (error) => {
+    const originalRequest = error.config;
 
-/**
- * Verify token validity (optional)
- */
-export const verifyToken = async () => {
-  const res = await api.get("/auth/verify");
-  return res.data; // { message: "Token is valid ✅ for user ..." }
-};
+    // Only handle 401s and avoid infinite loops
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const refresh = localStorage.getItem("refresh_token");
 
-/**
- * Logout current user
- */
-export const logoutUser = async () => {
-  const res = await api.post("/auth/logout");
-  return res.data; // { message: "Logged out successfully" }
-};
+      if (refresh) {
+        try {
+          // Try to refresh the access token
+          const res = await axios.post(
+            `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/auth/refresh`,
+            {},
+            { headers: { Authorization: `Bearer ${refresh}` } }
+          );
+
+          // Save new access token
+          localStorage.setItem("access_token", res.data.access_token);
+
+          // Retry the original request with new token
+          originalRequest.headers.Authorization = `Bearer ${res.data.access_token}`;
+          return api(originalRequest);
+        } catch (err) {
+          console.warn("🔴 Refresh token expired or invalid, logging out...");
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          window.location.href = "/login";
+        }
+      } else {
+        console.warn("⚠️ No refresh token found, redirecting to login.");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        window.location.href = "/login";
+      }
+    }
+
+    // If not a 401 or still fails, reject
+    return Promise.reject(error);
+  }
+);
 
 
 
