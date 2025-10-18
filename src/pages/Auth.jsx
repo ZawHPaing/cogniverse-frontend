@@ -1,6 +1,7 @@
 import React from "react";
 import "../profile-nav.css";
 import { loginUser, registerUser } from "../api/api";
+import NavProduct from "../components/NavProduct";
 
 /* ================= Theme ================= */
 
@@ -18,41 +19,18 @@ function useTheme() {
   return { theme, toggle };
 }
 
+  const toggleTheme = () => {
+    const next = t === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch {}
+    setT(next);
+  };
+
 /* ================= Navigation Header ================= */
 
-function PfNav({ theme, onToggleTheme, onGoWorkstation, onGoGraph, onGoHistory }) {
-  return (
-    <header className="pf-nav pf-nav-pretty ws-card">
-      <div className="pf-brand">
-        <div className="ws-brand">
-          <span className="logo"><img src="logo.png" alt="CogniVerse logo" /></span>
-        </div>
-        <div className="pf-divider" />
-        <nav className="pf-tabs" aria-label="Primary">
-          <button className="pf-tab" onClick={onGoWorkstation}>Workstation</button>
-          <button className="pf-tab" onClick={onGoGraph}>Graph</button>
-          <button className="pf-tab ghost" onClick={onGoHistory}>History</button>
-        </nav>
-      </div>
 
-      <div className="pf-right">
-        <button
-          type="button"
-          className={`ws-theme-switch ${theme}`}
-          onClick={onToggleTheme}
-          aria-label="Toggle theme"
-        />
-        <div className="pf-user" role="button" tabIndex={0} aria-label="User profile">
-          <div className="avatar">A</div>
-          <div className="meta">
-            <div className="name">Alex</div>
-            <div className="role">Pro</div>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
 
 /* ============== Reveal Animation Wrapper ============== */
 
@@ -101,6 +79,8 @@ export default function AuthPage() {
   const { theme, toggle } = useTheme();
   const [tab, setTab] = React.useState("login"); // 'login' | 'signup'
   const [message, setMessage] = React.useState("");
+  const [messageType, setMessageType] = React.useState(""); // "success" | "error" | "warning"
+  const [isLoading, setIsLoading] = React.useState(false);
 
   const goWorkstation = () => (window.location.href = "/workstation");
   const goGraph = () => (window.location.href = "/graph");
@@ -117,43 +97,56 @@ export default function AuthPage() {
         title: "Create your account",
         body: "Set up your workspace and start simulating real-world team dynamics."
       };
+  
+  // 🆕 ADD THIS FUNCTION
+  const showMessage = (text, type = "info") => {
+    setMessage(text);
+    setMessageType(type);
+    // Auto-clear message after 5 seconds
+    setTimeout(() => {
+      setMessage("");
+      setMessageType("");
+    }, 5000);
+  };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.currentTarget);
-  const payload = Object.fromEntries(fd.entries());
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const payload = Object.fromEntries(fd.entries());
 
-  try {
-    if (tab === "login") {
-      const res = await loginUser({
-        identifier: payload.identifier,
-        password: payload.password,
-      });
+    try {
+      if (tab === "login") {
+       const res = await loginUser({
+  identifier: payload.email,
+  password: payload.password,
+});
 
-      //console.log("✅ Login success:", res);
-      //setMessage(`Welcome back, ${payload.identifier || "friend"}!`);
+console.log("✅ Login success:", res);
+setMessage(`Welcome back, ${payload.email || "friend"}!`);
 
-      localStorage.setItem("access_token", res.access_token);
-      localStorage.setItem("refresh_token", res.refresh_token);
+// store tokens locally for later
+localStorage.setItem("access_token", res.access_token);
+localStorage.setItem("refresh_token", res.refresh_token);
 
-      setTimeout(() => {
-        window.location.href = "/workstation";
-      }, 800);
-    } else {
-      const res = await registerUser({
-        username: payload.username,
-        email: payload.email,
-        password: payload.password,
-      });
-      console.log("✅ Register success:", res);
-      setMessage(`Account created for ${payload.username || payload.email} ✔`);
+// optional small delay before redirect
+setTimeout(() => {
+  window.location.href = "/workstation";
+}, 800);
+
+      } else {
+        const res = await registerUser({
+          username: payload.name || payload.email.split("@")[0],
+          email: payload.email,
+          password: payload.password,
+        });
+        console.log("✅ Register success:", res);
+        setMessage(`Account created for ${payload.email || "you"} ✔`);
+      }
+    } catch (err) {
+      console.error("❌ Auth failed:", err.response?.data || err);
+      setMessage(err.response?.data?.detail || "Something went wrong");
     }
-  } catch (err) {
-    console.error("❌ Auth failed:", err.response?.data || err);
-    setMessage(JSON.stringify(err.response?.data || err));
-}
-};
-
+  };
 
   return (
     <div className="app auth-page">
@@ -163,7 +156,6 @@ export default function AuthPage() {
         onGoWorkstation={goWorkstation}
         onGoGraph={goGraph}
         onGoHistory={goHistory}
-        
       />
 
       <main>
@@ -210,50 +202,40 @@ export default function AuthPage() {
                 </div>
 
                 <form key={tab} onSubmit={handleSubmit} className="form" noValidate>
-                {/* Login: Show identifier field */}
-                  {tab === "login" && (
-                    <>
-                      <label htmlFor="identifier" className="fade-item" style={{ animationDelay: "40ms" }}>Username or Email</label>
-                      <input id="identifier" name="identifier" type="text" placeholder="john.doe or you@company.com" required className="fade-item" style={{ animationDelay: "80ms" }} />
-                    </>
-                  )}
-                {/* Login: Show identifier field */}
-                  {tab === "signup" && (
-                    <>
-                    <label htmlFor="username" className="fade-item" style={{ animationDelay: "40ms" }}>Username</label>
-                    <input id="username" name="username" type="text" placeholder="john.doe" required className="fade-item" style={{ animationDelay: "80ms" }} />
-
-                    <label htmlFor="email" className="fade-item" style={{ animationDelay: "120ms" }}>Email</label>
-                    <input id="email" name="email" type="email" placeholder="you@company.com" required className="fade-item" style={{ animationDelay: "160ms" }} />
-                    </>
-                  )}
+                  <label htmlFor="email" className="fade-item" style={{ animationDelay: "40ms" }}>Email or username</label>
+                  <input id="email" name="email" type="text" placeholder="you@company.com" required className="fade-item" style={{ animationDelay: "80ms" }} />
 
                   <label htmlFor="password" className="fade-item" style={{ animationDelay: "120ms" }}>Password</label>
-                  <input id="password" name="password" type="password" placeholder="••••••••" required className="fade-item" style={{ animationDelay: "160ms" }} />
+                  <input id="password" name="password" type="password" placeholder="••••••••" required className="fade-item" style={{ animationDelay: "160ms" }} disabled={isLoading} />
 
-                  <div className={`collapsible ${tab === "signup" ? "open" : ""} fade-item`} style={{ animationDelay: "200ms" }}>
-                    <div className="collapsible-inner">
-                      <label htmlFor="name">Your name</label>
-                      <input id="name" name="name" type="text" placeholder="Jane Doe" />
-                    </div>
-                  </div>
+                  
 
                   <div className="row between fade-item" style={{ animationDelay: "240ms" }}>
                     <label className="chk">
-                      <input type="checkbox" name="remember" />
+                      <input type="checkbox" name="remember" disabled={isLoading}/>
                       <span>Remember me</span>
                     </label>
                     <a className="link" href="#forgot">Forgot password?<span className="arr">→</span></a>
                   </div>
 
-                  <button className="btn primary fade-item" type="submit" style={{ animationDelay: "280ms" }}>
-                    {tab === "login" ? "Log in" : "Create account"}
+                  <button 
+                    className={`btn primary fade-item ${isLoading ? 'loading' : ''}`}  // 🆕 ADD loading class
+                    type="submit" 
+                    style={{ animationDelay: "280ms" }}
+                    disabled={isLoading}  // 🆕 ADD THIS
+                  >
+                    {isLoading ? "Please wait..." : (tab === "login" ? "Log in" : "Create account")}  {/* 🆕 UPDATE text */}
                   </button>
 
                   {message && (
-                    <p className="toast fade-item" style={{ animationDelay: "300ms" }} role="status" aria-live="polite">
+                    <div 
+                      className={`toast fade-item ${messageType}`} 
+                      style={{ animationDelay: "300ms" }} 
+                      role="status" 
+                      aria-live="polite"
+                    >
                       {message}
-                    </p>
+                    </div>
                   )}
 
                   <div className="or fade-item" style={{ animationDelay: "320ms" }}>
@@ -261,16 +243,16 @@ export default function AuthPage() {
                   </div>
 
                   <div className="social fade-item" style={{ animationDelay: "360ms" }}>
-                    <button type="button" className="btn ghost"><IcGoogle /><span>Google</span></button>
-                    <button type="button" className="btn ghost"><IcGithub /><span>GitHub</span></button>
-                    <button type="button" className="btn ghost"><IcApple /><span>Apple</span></button>
+                    <button type="button" className="btn ghost" disabled={isLoading}><IcGoogle /><span>Google</span></button>
+                    <button type="button" className="btn ghost" disabled={isLoading}><IcGithub /><span>GitHub</span></button>
+                    <button type="button" className="btn ghost" disabled={isLoading}><IcApple /><span>Apple</span></button>
                   </div>
 
                   <p className="swap fade-item" style={{ animationDelay: "400ms" }}>
                     {tab === "login" ? (
-                      <>Don&apos;t have an account? <button type="button" onClick={() => setTab("signup")} className="link">Sign up<span className="arr">→</span></button></>
+                    <>Don&apos;t have an account? <button type="button" onClick={() => setTab("signup")} className="link" disabled={isLoading}>Sign up<span className="arr">→</span></button></>
                     ) : (
-                      <>Already have an account? <button type="button" onClick={() => setTab("login")} className="link">Log in<span className="arr">→</span></button></>
+                    <>Already have an account? <button type="button" onClick={() => setTab("login")} className="link" disabled={isLoading}>Log in<span className="arr">→</span></button></>
                     )}
                   </p>
                 </form>
