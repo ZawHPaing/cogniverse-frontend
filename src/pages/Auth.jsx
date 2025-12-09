@@ -34,7 +34,7 @@ function useTheme() {
 
 /* ============== Reveal Animation Wrapper ============== */
 
-function Reveal({ as: Tag = "div", variant = "fade-up", delay = 0, className = "", children, ...rest }) {
+export function Reveal({ as: Tag = "div", variant = "fade-up", delay = 0, className = "", children, ...rest }) {
   const ref = React.useRef(null);
   React.useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -133,9 +133,19 @@ export default function AuthPage() {
         localStorage.setItem("access_token", res.access_token);
         localStorage.setItem("refresh_token", res.refresh_token);
 
-        setTimeout(() => {
-          window.location.href = "/workstation";
-        }, 1500);
+       // decode JWT payload
+const tokenParts = res.access_token.split(".");
+const decoded = JSON.parse(atob(tokenParts[1]));
+const role = decoded.role || "user";
+
+let target = "/workstation";
+if (role === "admin" || role === "superadmin") target = "/admin";
+
+// wait for UI feedback, then redirect
+setTimeout(() => {
+  window.location.href = target;
+}, 1500);
+
       } else {
         // Registration validation
         if (payload.password.length < 6) {
@@ -262,7 +272,7 @@ export default function AuthPage() {
                       <input type="checkbox" name="remember" disabled={isLoading}/>
                       <span>Remember me</span>
                     </label>
-                    <a className="link" href="#forgot">Forgot password?<span className="arr">→</span></a>
+                    <a className="link" href="/forgot-password">Forgot password?<span className="arr">→</span></a>
                   </div>
 
                   <button 
@@ -274,16 +284,7 @@ export default function AuthPage() {
                     {isLoading ? "Please wait..." : (tab === "login" ? "Log in" : "Create account")}  {/* 🆕 UPDATE text */}
                   </button>
 
-                  {message && (
-                    <div 
-                      className={`toast fade-item ${messageType}`} 
-                      style={{ animationDelay: "300ms" }} 
-                      role="status" 
-                      aria-live="polite"
-                    >
-                      {message}
-                    </div>
-                  )}
+                
 
                   <div className="or fade-item" style={{ animationDelay: "320ms" }}>
                     <span>or continue with</span>
@@ -309,9 +310,21 @@ export default function AuthPage() {
         </section>
       </main>
 
+
+      {message && (
+        <div
+          className={`toast ${messageType}`}
+          role="status"
+          aria-live="polite"
+        >
+          {message}
+        </div>
+      )}
+
       <footer className="footer">
         <p>© CogniVerse</p>
       </footer>
+
     </div>
   );
 }

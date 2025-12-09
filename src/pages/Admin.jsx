@@ -5,16 +5,20 @@
 import React from "react";
 import "../admin.css";
 import { AdminNav } from "../components/AdminNav.jsx";
-
+import { logoutUser } from "../api/api.js"; // adjust path if needed
 // 🧩 Import tab modules
 import AccessConfig from "../components/admin/AccessConfig.jsx";
 import SystemLogTable from "../components/admin/SystemLogTable.jsx";
 import AccessControlTable from "../components/admin/AccessControlTable.jsx";
 import AnnouncementTable from "../components/admin/AnnouncementTable.jsx";
 import NotificationTable from "../components/admin/NotificationTable.jsx";
-
+import MaintenanceTable from "../components/admin/MaintenanceTable.jsx";
+import UserManagementTable from "../components/admin/UserManagementTable.jsx"; // 🆕 ADD THIS
+import CreditConfig from "../components/admin/CreditConfig.jsx"; // ✅ ADD THIS
+import CreditTransactionTable from "../components/admin/CreditTransactionTable.jsx";
 // 🧩 Shared helpers (optional, if needed here)
 import { fmtDate, StatusPill } from "../components/admin//helpers.jsx";
+import { handleLogout } from "../utils/logout.js";
 
 /* ----------------------- tiny SVG icons (inline) ----------------------- */
 const Icon = ({ name, size = 18 }) => {
@@ -64,6 +68,15 @@ const Icon = ({ name, size = 18 }) => {
           <rect x="3" y="4" width="14" height="18" rx="2" />
           <path d="M7 8h6M7 12h6M7 16h4" />
           <path d="M17 8h4v12a2 2 0 0 1-2 2h-2" />
+        </svg>
+      );
+    case "users": // 🆕 ADD USER MANAGEMENT ICON
+      return (
+        <svg {...props}>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       );
     case "plus":
@@ -119,24 +132,24 @@ export default function Admin() {
   const [theme, setTheme] = React.useState(
     () => document.documentElement.getAttribute("data-theme") || "dark"
   );
-  const [tab, setTab] = React.useState("config");
+
+  // ✅ Load last active tab from localStorage or fallback to "config"
+  const [tab, setTab] = React.useState(() => localStorage.getItem("admin_tab") || "config");
 
   React.useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    sessionStorage.clear();
-    window.location.href = "/login"; // redirect to login
-  };
+  // ✅ Whenever tab changes, store it
+  React.useEffect(() => {
+    localStorage.setItem("admin_tab", tab);
+  }, [tab]);
+
 
   return (
     <div className="ad-shell">
-      {/* Background */}
       <div className="ad-bg" aria-hidden />
 
-      {/* Sidebar */}
       <AdminNav
         theme={theme}
         tab={tab}
@@ -145,28 +158,33 @@ export default function Admin() {
         handleLogout={handleLogout}
       />
 
-      {/* Content */}
       <main className="ad-main">
         <header className="ad-head ws-card">
-          <div className="title">
-            {tab === "config" && "Access Config"}
-            {tab === "syslog" && "System Log"}
-            {tab === "access" && "Access Control"}
-            {tab === "announcements" && "Announcements"}
-            {tab === "notify" && "Notification"}
-          </div>
-        </header>
+        <div className="title">
+          {tab === "config" && "System Config"}
+          {tab === "maintenance" && "System Maintenance"}
+          {tab === "syslog" && "System Log"}
+          {tab === "access" && "Access Control"}
+          {tab === "creditpacks" && "Credit Packs"}
+          {tab === "announcements" && "Announcements"}
+          {tab === "notify" && "Notification"}
+          {tab === "users" && "User Management"} {/* 🆕 ADD THIS */}
+          {tab === "credittransactions" && "Credit Transactions"}
+        </div>
+      </header>
 
-        {/* Render Tab Content */}
+        {/* ✅ Move table components here in main section */}
         {tab === "config" && <AccessConfig Icon={Icon} />}
+        {tab === "maintenance" && <MaintenanceTable Icon={Icon} />}
         {tab === "syslog" && <SystemLogTable />}
         {tab === "access" && <AccessControlTable Icon={Icon} />}
+        {tab === "creditpacks" && <CreditConfig Icon={Icon} />}  
         {tab === "announcements" && <AnnouncementTable Icon={Icon} />}
         {tab === "notify" && <NotificationTable />}
+        {tab === "users" && <UserManagementTable />} {/* 🆕 ADD THIS */}
+        {tab === "credittransactions" && <CreditTransactionTable Icon={Icon} />}
 
-        {!["config", "syslog", "access", "announcements", "notify"].includes(
-          tab
-        ) && (
+        {!["config", "syslog", "access", "announcements", "notify", "users", "creditpacks", "credittransactions", "maintenance"].includes(tab) && (
           <section className="ad-card ws-card ad-empty">
             Coming soon: {tab}
           </section>

@@ -2,105 +2,173 @@
 // main.jsx
 // ===============================
 // React entry point for the CogniVerse frontend.
-// Uses React Router for all client-side routing.
-// Each <Route> maps to a page component.
+// Handles all routes and integrates authentication context.
 // ===============================
 
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-// 🌍 Pages
+import AppRoot from "./AppRoot.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import { withGlobalMaintenanceGuard } from "./components/withGlobalMaintenanceGuard.jsx";
+import PaymentPage from "./pages/payment.jsx";
+import CreditPage from './pages/Credit.jsx'
+import "./styles.css";
+import CreditSuccess from "./pages/CreditSuccess.jsx";
+import CreditCancel from "./pages/CreditCancel.jsx";
+/* ===============================
+   🌍 PUBLIC PAGES
+   =============================== */
 import App from "./App.jsx"; // Landing page
 import FeaturesPage from "./pages/Features.jsx";
 import OfferPage from "./pages/Offer.jsx";
 import ContactPage from "./pages/Contact.jsx";
 import AboutPage from "./pages/About.jsx";
 import AuthPage from "./pages/Auth.jsx";
+import MaintenancePage from "./pages/MaintenancePage.jsx";
+import UnauthorizedPage from "./pages/UnauthorizedPage.jsx";
+import ForgotPasswordPage from "./pages/ForgotPassword.jsx";
+import ResetPasswordPage from "./pages/ResetPassword.jsx";
+/* ===============================
+   👤 USER PAGES
+   =============================== */
 import ProfilePage from "./pages/Profile.jsx";
 
-// 🧠 Workstation system
+/* ===============================
+   🧠 WORKSTATION SYSTEM
+   =============================== */
 import WorkstationHub from "./pages/WorkstationHub.jsx";
 import WorkstationPage from "./pages/Workstation.jsx";
 import ScenarioPage from "./pages/ScenarioPage.jsx";
 
-// 🧩 Development / experimental
+/* ===============================
+   🧩 DEVELOPMENT / EXPERIMENTAL
+   =============================== */
 import AgentNode from "./pages/AgentNodes.jsx";
 import WorkstationPageTest from "./pages/TestAgent.jsx";
 import SessionMonitor from "./pages/SessionMonitor.jsx";
-import AdminPage from "./pages/Admin.jsx"; 
+//import AdminTest from "./pages/TestAdmin.jsx";
 
-import "./styles.css";
+/* ===============================
+   🧱 ADMIN SECTION
+   =============================== */
+import AdminPage from "./pages/Admin.jsx";
 
-// ===============================
-// Main Application Router
-// ===============================
+/* ===============================
+   🌐 WRAP APP ROOT WITH MAINTENANCE GUARD
+   =============================== */
+const GuardedAppRoot = withGlobalMaintenanceGuard(AppRoot);
+
+/* ===============================
+   🌐 ROOT
+   =============================== */
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    {/* 
-      BrowserRouter enables clean URLs (no hash) 
-      and controls navigation entirely in the browser.
-    */}
     <BrowserRouter>
-      <Routes>
-        {/* ===============================
-            🌍  PUBLIC PAGES
-            =============================== */}
-        <Route path="/" element={<App />} />
-        <Route path="/features" element={<FeaturesPage />} />
-        <Route path="/offer" element={<OfferPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
+      {/* ⛑️ Apply global maintenance check here */}
+      <GuardedAppRoot>
+        <Routes>
+          {/* ===============================
+              🌍  PUBLIC
+              =============================== */}
+          <Route path="/" element={<App />} />
+          <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/offer" element={<OfferPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/maintenance" element={<MaintenancePage />} />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            <Route path="/credit/success" element={<CreditSuccess />} />
+            <Route path="/credit/cancel" element={<CreditCancel />} />
 
-        {/* ===============================
-            🔐  AUTHENTICATION
-            =============================== */}
-        {/* Default auth route (decides internally between login/signup) */}
-        <Route path="/auth" element={<AuthPage />} />
+          {/* ===============================
+              🔐  AUTH
+              =============================== */}
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/login" element={<AuthPage defaultMode="login" />} />
+          <Route path="/signup" element={<AuthPage defaultMode="signup" />} />
 
-        {/* Direct routes for login/signup with preset mode */}
-        <Route path="/login" element={<AuthPage defaultMode="login" />} />
-        <Route path="/signup" element={<AuthPage defaultMode="signup" />} />
+          {/* 🆕 Forgot / Reset Password */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-        {/* ===============================
-            🧠  WORKSTATION SYSTEM
-            =============================== */}
-        {/* 1️⃣ Hub (list of all projects) */}
-        <Route path="/workstation" element={<WorkstationHub />} />
+          {/* ===============================
+              👤  USER (PROTECTED)
+              =============================== */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ===============================
+              🧠  WORKSTATION SYSTEM (PROTECTED)
+              =============================== */}
+          <Route
+            path="/workstation"
+            element={
+              <ProtectedRoute>
+                <WorkstationHub />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workstation/new"
+            element={
+              <ProtectedRoute>
+                <WorkstationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workstation/:projectid"
+            element={
+              <ProtectedRoute>
+                <WorkstationPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workstation/:projectid/scenario"
+            element={
+              <ProtectedRoute>
+                <ScenarioPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ===============================
+              🧱  ADMIN SECTION (ROLE-BASED)
+              =============================== */}
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
+                <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ===============================
+              🧩  DEVELOPMENT / TEST
+              =============================== */}
           <Route path="/testws" element={<WorkstationPageTest />} />
-        {/* 2️⃣ Create a new project */}
-        <Route path="/workstation/new" element={<WorkstationPage />} />
+          {/* <Route path="/testadm" element={<AdminTest />} /> */}
+          <Route path="/agentnodes" element={<AgentNode />} />
+          <Route path="/sessionMonitor" element={<SessionMonitor />} />
+          <Route path="/payment" element={<PaymentPage />} />
+          <Route path="/credit" element={<CreditPage />} />
 
-        {/* 3️⃣ Open a specific project (agents, relationships, etc.) */}
-        <Route path="/workstation/:projectid" element={<WorkstationPage />} />
-
-        {/* 4️⃣ Scenario simulation page for that project */}
-        <Route
-          path="/workstation/:projectid/scenario"
-          element={<ScenarioPage />}
-        />
-
-        {/* ===============================
-            🧩  DEV / DEBUG ROUTES
-            =============================== */}
-        <Route path="/agentnodes" element={<AgentNode />} />
-        <Route path="/sessionMonitor" element={<SessionMonitor/>} />
-        
-
-        {/* ===============================
-            🚧  FALLBACK
-            If no route matches, go home.
-            =============================== */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-
-        {/* ===============================
-    🧱  ADMIN SECTION
-    =============================== */}
-<Route path="/admin" element={<AdminPage />} />
-<Route path="/admin/*" element={<AdminPage />} />
-
-      </Routes>
+          {/* ===============================
+              🚧  FALLBACK
+              =============================== */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </GuardedAppRoot>
     </BrowserRouter>
   </React.StrictMode>
 );

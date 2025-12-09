@@ -8,7 +8,9 @@ import { createPortal } from "react-dom";
 import { useParams } from "react-router-dom";
 import RelationshipGraph from "./Graph";
 import ScenarioPage from "./ScenarioPage";
-import { WorkstationSidebar } from "../components/Sidebar";
+import { AgentSidebar, MbtiSelect } from "../components/Sidebar";
+import NavProduct from "../components/NavProduct";
+
 import {
   getAgents,
   createAgent,
@@ -17,6 +19,8 @@ import {
   getProjectAgents,
   updateProjectAgent,
 } from "../api/api";
+import { usePermission } from "../hooks/usePermission";
+import { useNavigate } from "react-router-dom";
 
 /* ---------- Theme utilities ---------- */
 function getStoredTheme() {
@@ -125,15 +129,9 @@ function AgentCard({ agent, onRemove, onEdit }) {
           <div className="ws-tag">{agent.agentpersonality}</div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <button className="ws-icon-btn" onClick={() => onEdit(agent)}>
-            ✎
-          </button>
-          <button
-            className="ws-icon-btn ghost"
-            onClick={() => onRemove(agent.agentid)}
-          >
-            ✕
-          </button>
+          <button className="ws-icon-btn" onClick={() => onEdit?.(agent)} disabled={!onEdit}>✎</button>
+<button className="ws-icon-btn ghost" onClick={() => onRemove?.(agent.agentid)} disabled={!onRemove}>✕</button>
+
         </div>
       </div>
 
@@ -282,14 +280,12 @@ function AgentModal({ open, mode = "add", initial, onClose, onSubmit }) {
               required
             />
           </label>
-          <label>
-            <span>MBTI</span>
-            <input
-              name="agentpersonality"
-              value={form.agentpersonality}
-              onChange={handle}
-            />
-          </label>
+          <MbtiSelect
+            label="MBTI"
+            name="agentpersonality"
+            value={form.agentpersonality}
+            onChange={handle}
+          />
           <label>
             <span>Skills (comma-separated)</span>
             <input
@@ -416,10 +412,25 @@ function AgentViewModal({ open, agent, onClose }) {
 }
 
 /* ---------- Main Workstation Page ---------- */
-export default function WorkstationPage() {
+export  function WorkstationPage() {
   const { projectid } = useParams();
+  const navigate = useNavigate();
+const { level: permission, canRead, canWrite, loading: permLoading } = usePermission("AGENTS");
+const [noAccessModal, setNoAccessModal] = useState({ open: false, message: "" });
+
   const [theme, setTheme] = useState(getStoredTheme());
   const [expanded, setExpanded] = useState(true);
+  const handleExpand = () => {
+  setExpanded((prev) => !prev);
+};
+const toggleTheme = () => {
+  const newTheme = theme === "dark" ? "light" : "dark";
+  setTheme(newTheme);
+  localStorage.setItem("theme", newTheme);
+  document.documentElement.setAttribute("data-theme", newTheme);
+};
+
+
   const [agents, setAgents] = useState([]);
   const [selected, setSelected] = useState([]);
   const [openModal, setOpenModal] = useState(false);
@@ -432,6 +443,13 @@ export default function WorkstationPage() {
 
   const [linking, setLinking] = useState(false);
   const [ready, setReady] = useState(false);
+
+  // 🧠 Permission redirect fix
+useEffect(() => {
+  if (!permLoading && permission === "none") {
+    navigate("/unauthorized");
+  }
+}, [permLoading, permission, navigate]);
 
 
   // 🔁 Remember last open stage
@@ -464,18 +482,21 @@ useEffect(() => {
 
   // Restore any local draft before fetching real data
   useEffect(() => {
-    const draft = localStorage.getItem(`proj-${projectid}-draftAgents`);
-    if (draft) {
-      try {
-        const parsed = JSON.parse(draft);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          console.log("📦 Restored draft agent selection:", parsed);
-          setSelected(parsed);
-        }
-      } catch {
-        console.warn("⚠️ Failed to parse local draft");
-      }
+const draft = localStorage.getItem(`proj-${projectid}-draftAgents`);
+if (draft) {
+  try {
+    const parsed = JSON.parse(draft);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      console.log("📦 Restored draft agent selection:", parsed);
+      // Add this filter:
+      const cleaned = parsed.filter(a => a && a.agentid);
+      setSelected(cleaned);
     }
+  } catch {
+    console.warn("⚠️ Failed to parse local draft");
+  }
+}
+
   }, [projectid]);
 
   // 🔁 Parallel load for agents + project agents
@@ -646,116 +667,193 @@ const handleAdd = async (input) => {
     setSelected((s) => s.filter((a) => a.agentid !== id));
 
   // =============== Render ===============
-  if (!ready) return null; // or <div>Loading workspace…</div>
+ // =============== Render ===============
+if (!ready) return null; // or <div>Loading workspace…</div>
 
-  return (
-    <div className={`app ws-page ${stage === "scenario" ? "no-sidebar" : ""}`}>
-      <Toaster position="top-right" toastOptions={{ duration: 2000 }} />
-      {stage !== "scenario" && (
-        <WorkstationSidebar
-          expanded={expanded}
-          onToggleExpand={() => setExpanded((e) => !e)}
-          theme={theme}
-          onToggleTheme={() =>
-            setTheme((t) => (t === "dark" ? "light" : "dark"))
-          }
-          onPickExisting={handlePickExisting}
-          selectedIds={selected.map((a) => a.agentid)}
-          refreshKey={agents.length}
-        />
-      )}
+return (
+  <div className={`app ws-page ${stage === "scenario" ? "no-sidebar" : ""}`}>
+    <Toaster position="top-right" toastOptions={{ duration: 2000 }} />
 
-      <main className="ws-main">
+    {/* ✅ Permission-safe rendering */}
+    {permLoading ? (
+      <p className="hub-loading">Checking permissions...</p>
+    ) : permission === "none" ? (
+      <p className="hub-loading">Redirecting...</p>
+    ) : (
+      <>
         {stage !== "scenario" && (
-          <header className="ws-header">
-            <h1>Agents</h1>
-            <div className="ws-head-actions">
-              <div className="ws-count">Max 5 agents • {selected.length}/5</div>
-              <button
-                className="ws-btn primary"
-                onClick={() => setOpenModal(true)}
-                disabled={selected.length >= 5}
-              >
-                + Add Agent
-              </button>
-            </div>
-          </header>
+<div className="ws-left-only">
+<AgentSidebar
+  variant="workstation"
+  expanded={expanded}
+  onToggleExpand={handleExpand}
+  theme={theme}
+  onToggleTheme={toggleTheme}
+  onPickExisting={handlePickExisting}
+  selectedIds={selected.map(a => a.agentid)}
+
+  
+/></div>
         )}
 
-        <section className="ws-board">
-          {stage === "cards" && (
-            <>
-              <div className="ws-board-head">
-                <h3>Your team</h3>
-                <span className="ws-count">{selected.length}/5</span>
-              </div>
-
-              <div className="ws-grid">
-                {selected.map((ag) => (
-                  <AgentCard
-                    key={ag.agentid}
-                    agent={ag}
-                    onRemove={remove}
-                    onEdit={setEditModal}
+        <main className="ws-main">
+          <NavProduct
+                    theme={theme}
+                    onToggleTheme={toggleTheme}
+                    active="workstation"
+                    onGoWorkstation={() => navigate("/workstation")}
+                    onGoGraph={() => navigate("/relationship-explorer")}
+                    onGoHistory={() => navigate("/history")}
                   />
-                ))}
-                {selected.length === 0 && (
-                  <div className="ws-empty">
-                    <p>No agents yet.</p>
-                    <p>Add a new agent or pick one from the sidebar.</p>
-                  </div>
-                )}
+
+              {/* MOBILE toolbar clone of the sidebar (≤720px) */}
+              <div className="ws-mobile-after-nav">
+                <AgentSidebar
+                  variant="workstation"
+                  expanded={true}
+                  onToggleExpand={handleExpand}
+                  theme={theme}
+                  onToggleTheme={toggleTheme}
+                  onPickExisting={handlePickExisting}
+                  selectedIds={selected.map(a => a.agentid)}
+                />
               </div>
 
-              <div className="ws-next">
+          {stage !== "scenario" && (
+            <header className="ws-header">
+              <h1>Agents</h1>
+              <div className="ws-head-actions">
+                <div className="ws-count">
+                  Max 5 agents • {selected.length}/5
+                </div>
                 <button
                   className="ws-btn primary"
-                  onClick={handleProceedToGraph}
-                  disabled={selected.length < 2 || linking}
+                  onClick={() => {
+                    if (!canWrite) {
+                      setNoAccessModal({
+                        open: true,
+                        message:
+                          "You don't have permission to add agents.",
+                      });
+                      return;
+                    }
+                    setOpenModal(true);
+                  }}
+                  disabled={selected.length >= 5 || !canWrite}
+                  title={!canWrite ? "Read-only access" : ""}
                 >
-                  {linking ? "Linking..." : "Next"}
+                  + Add Agent
                 </button>
               </div>
-            </>
+            </header>
           )}
 
-          {stage === "graph" && (
-            <RelationshipGraph
-              agents={selected}
-              onBack={() => setStage("cards")}
-              onNext={() => setStage("scenario")}
-            />
-          )}
+          <section className="ws-board">
+            {stage === "cards" && (
+              <>
+                <div className="ws-board-head">
+                  <h3>Your team</h3>
+                  <span className="ws-count">{selected.length}/5</span>
+                </div>
 
-          {stage === "scenario" && (
-            <ScenarioPage
-              theme={theme}
-              onBackToWorkstation={() => setStage("cards")}
-              onBackToGraph={() => setStage("graph")}
-              selectedAgents={selected}
-            />
-          )}
-        </section>
-      </main>
+                <div className="ws-grid">
+                  {selected.map((ag) => (
+                    <AgentCard
+                      key={ag.agentid}
+                      agent={ag}
+                      onRemove={canWrite ? remove : undefined}
+                      onEdit={canWrite ? setEditModal : undefined}
+                    />
+                  ))}
+                  {selected.length === 0 && (
+                    <div className="ws-empty">
+                      <p>No agents yet.</p>
+                      <p>Add a new agent or pick one from the sidebar.</p>
+                    </div>
+                  )}
+                </div>
 
-      <AgentModal
-        open={openModal}
-        mode="add"
-        onClose={() => setOpenModal(false)}
-        onSubmit={handleAdd}
-      />
-      <AgentModal
-        open={!!editModal}
-        mode="edit"
-        initial={editModal || undefined}
-        onClose={() => setEditModal(null)}
-        onSubmit={handleEditSave}
-      />
-    </div>
-  );
+                <div className="ws-next">
+                  <button
+                    className="ws-btn primary"
+                    onClick={handleProceedToGraph}
+                    disabled={selected.length < 2 || linking}
+                  >
+                    {linking ? "Linking..." : "Next"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {stage === "graph" && (
+              <RelationshipGraph
+                agents={selected}
+                onBack={() => setStage("cards")}
+                onNext={() => setStage("scenario")}
+              />
+            )}
+
+            {stage === "scenario" && (
+              <ScenarioPage
+                theme={theme}
+                onBackToWorkstation={() => setStage("cards")}
+                onBackToGraph={() => setStage("graph")}
+                selectedAgents={selected}
+              />
+            )}
+          </section>
+        </main>
+
+        <AgentModal
+          open={openModal}
+          mode="add"
+          onClose={() => setOpenModal(false)}
+          onSubmit={handleAdd}
+        />
+        <AgentModal
+          open={!!editModal}
+          mode="edit"
+          initial={editModal || undefined}
+          onClose={() => setEditModal(null)}
+          onSubmit={handleEditSave}
+        />
+
+        {noAccessModal.open && (
+          <div className="ad-modal">
+            <div className="ad-modal-content ws-card">
+              <h3>Access Denied</h3>
+              <p>{noAccessModal.message}</p>
+              <div className="modal-actions">
+                <button
+                  className="ws-btn primary"
+                  onClick={() =>
+                    setNoAccessModal({ open: false, message: "" })
+                  }
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+);
+
 }
 
 // ===============================
 // Exports
 // ===============================
+// ===============================
+// Exports (Final)
+// ===============================
+import { withMaintenanceGuard } from "../components/withMaintenanceGuard";
+
+// ✅ Named exports (helpers)
 export { SvgIcon, AgentCard, AgentModal, AgentViewModal };
+
+// ✅ Default export (guarded version)
+const GuardedWorkstation = withMaintenanceGuard(WorkstationPage, "Workstation");
+export default GuardedWorkstation;
